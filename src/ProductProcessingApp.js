@@ -1,7 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { 
+  Container, Typography, Button, TextField, Paper, Table, TableBody, TableCell, 
+  TableContainer, TableHead, TableRow, CircularProgress, Alert, Tooltip
+} from '@mui/material';
+import { styled } from '@mui/system';
 
 const API_BASE_URL = 'http://localhost:3000/api/v1'; // Ajuste conforme necessário
+
+const Input = styled('input')({
+  display: 'none',
+});
 
 const ProductProcessingApp = () => {
   const [jobId, setJobId] = useState(null);
@@ -12,7 +21,6 @@ const ProductProcessingApp = () => {
   const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -97,89 +105,112 @@ const ProductProcessingApp = () => {
   }, []);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Processamento de Produtos</h1>
+    <Container maxWidth="lg">
+      <Typography variant="h4" component="h1" gutterBottom>
+        Processamento de Produtos
+      </Typography>
       
-      <div className="mb-4">
-        <input
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          ref={fileInputRef}
-          className="mb-2"
-        />
-        <button 
-          onClick={startProcessing}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+      <Paper elevation={3} style={{ padding: '20px', marginBottom: '20px' }}>
+        <label htmlFor="contained-button-file">
+          <Input accept="application/json" id="contained-button-file" type="file" onChange={handleFileChange} />
+          <Button variant="contained" component="span">
+            Selecionar Arquivo
+          </Button>
+        </label>
+        {selectedFile && <Typography variant="body2">{selectedFile.name}</Typography>}
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={startProcessing} 
           disabled={loading || !selectedFile}
+          style={{ marginLeft: '10px' }}
         >
           Importar Novo Arquivo
-        </button>
-      </div>
+        </Button>
+      </Paper>
 
-      <form onSubmit={handleSearch} className="mb-4 flex">
-        <input
-          type="text"
+      <Paper component="form" onSubmit={handleSearch} style={{ padding: '20px', marginBottom: '20px', display: 'flex' }}>
+        <TextField
+          variant="outlined"
           placeholder="Buscar por nome do produto"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="border p-2 rounded-l flex-grow"
+          fullWidth
         />
-        <button 
+        <Button 
           type="submit"
-          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-r"
+          variant="contained" 
+          color="primary"
           disabled={loading}
+          style={{ marginLeft: '10px' }}
         >
           Buscar
-        </button>
-      </form>
+        </Button>
+      </Paper>
 
       {jobId && processingStatus !== 'completed' && (
-        <p>Status do processamento: {processingStatus || 'Verificando...'}</p>
+        <Alert severity="info">Status do processamento: {processingStatus || 'Verificando...'}</Alert>
       )}
+
+      {loading && <CircularProgress />}
+
+      {error && <Alert severity="error">{error}</Alert>}
 
       {products.length > 0 ? (
-        <div>
-          <h2 className="text-xl font-semibold mt-4 mb-2">Lista de Produtos</h2>
-          {products.map(product => (
-            <div key={product.id} className="border p-4 mb-4 rounded shadow">
-              <h3 className="font-bold text-lg">{product.product_name}</h3>
-              <p><strong>ID:</strong> {product.id}</p>
-              <p><strong>País:</strong> {product.country}</p>
-              <p><strong>Marca:</strong> {product.brand}</p>
-              <p><strong>ID do Produto:</strong> {product.product_id}</p>
-              <p><strong>Loja:</strong> {product.shop_name}</p>
-              <p><strong>Categoria ID:</strong> {product.product_category_id}</p>
-              <p><strong>Preço:</strong> €{product.price.toFixed(2)}</p>
-              <p><strong>URL:</strong> <a href={product.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{product.url}</a></p>
-              <p><strong>Criado em:</strong> {new Date(product.created_at).toLocaleString()}</p>
-              <p><strong>Atualizado em:</strong> {new Date(product.updated_at).toLocaleString()}</p>
-              <p><strong>Número da Linha:</strong> {product.row_num}</p>
-            </div>
-          ))}
-          <div className="mt-4">
-            <button 
-              onClick={() => fetchProducts(currentPage - 1)}
-              disabled={currentPage === 1 || loading}
-              className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded mr-2"
-            >
-              Anterior
-            </button>
-            <button 
-              onClick={() => fetchProducts(currentPage + 1)}
-              disabled={loading}
-              className="bg-gray-300 hover:bg-gray-400 text-black font-bold py-2 px-4 rounded"
-            >
-              Próxima
-            </button>
-          </div>
-        </div>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Nome do Produto</TableCell>
+                <TableCell>Marca</TableCell>
+                <TableCell>País</TableCell>
+                <TableCell>Preço</TableCell>
+                <TableCell>Loja</TableCell>
+                <TableCell>URL</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {products.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell>{product.product_name}</TableCell>
+                  <TableCell>{product.brand}</TableCell>
+                  <TableCell>{product.country}</TableCell>
+                  <TableCell>€{product.price.toFixed(2)}</TableCell>
+                  <TableCell>{product.shop_name}</TableCell>
+                  <TableCell>
+                    <Tooltip title={product.url} arrow>
+                      <Typography noWrap style={{ maxWidth: 200 }}>
+                        {product.url}
+                      </Typography>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
-        <p>Nenhum produto encontrado.</p>
+        <Typography variant="body1">Nenhum produto encontrado.</Typography>
       )}
 
-      {error && <p className="text-red-500 mt-4">{error}</p>}
-    </div>
+      <div style={{ marginTop: '20px' }}>
+        <Button 
+          onClick={() => fetchProducts(currentPage - 1)}
+          disabled={currentPage === 1 || loading}
+          variant="contained"
+          style={{ marginRight: '10px' }}
+        >
+          Anterior
+        </Button>
+        <Button 
+          onClick={() => fetchProducts(currentPage + 1)}
+          disabled={loading}
+          variant="contained"
+        >
+          Próxima
+        </Button>
+      </div>
+    </Container>
   );
 };
 
