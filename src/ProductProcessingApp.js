@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Container, Typography, CircularProgress, Alert } from '@mui/material';
 import FileUploader from './components/FileUploader';
@@ -7,7 +7,7 @@ import ProcessingModal from './components/ProcessingModal';
 import ProductTable from './components/ProductTable';
 import Pagination from './components/Pagination';
 
-const API_BASE_URL = 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 const ProductProcessingApp = () => {
   const [jobId, setJobId] = useState(null);
@@ -77,7 +77,24 @@ const ProductProcessingApp = () => {
     }
   };
 
-  const checkProcessingStatus = async () => {
+  const fetchProducts = useCallback(async (page = 1, newSearchTerm = searchTerm, newCountry = selectedCountry) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/products`, {
+        params: { page, product_name: newSearchTerm, country: newCountry }
+      });
+      setProducts(response.data.products);
+      setCountries(response.data.countries);
+      setCurrentPage(page);
+    } catch (err) {
+      setError('Erro ao buscar produtos');
+    } finally {
+      setLoading(false);
+    }
+  }, [searchTerm, selectedCountry]);
+
+  const checkProcessingStatus = useCallback(async () => {
     if (!jobId) return;
     try {
       const response = await axios.get(`${API_BASE_URL}/processing_status/${jobId}`);
@@ -96,24 +113,7 @@ const ProductProcessingApp = () => {
       setError('Erro ao verificar o status do processamento');
       setIsModalOpen(false);
     }
-  };
-
-  const fetchProducts = async (page = 1, newSearchTerm = searchTerm, newCountry = selectedCountry) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get(`${API_BASE_URL}/products`, {
-        params: { page, product_name: newSearchTerm, country: newCountry }
-      });
-      setProducts(response.data.products);
-      setCountries(response.data.countries);
-      setCurrentPage(page);
-    } catch (err) {
-      setError('Erro ao buscar produtos');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [jobId, fetchProducts]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -132,7 +132,7 @@ const ProductProcessingApp = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
   useEffect(() => {
     let intervalId;
@@ -144,7 +144,7 @@ const ProductProcessingApp = () => {
         clearInterval(intervalId);
       }
     };
-  }, [jobId, isModalOpen]);
+  }, [jobId, isModalOpen, checkProcessingStatus]);
 
   return (
     <Container maxWidth="lg">
