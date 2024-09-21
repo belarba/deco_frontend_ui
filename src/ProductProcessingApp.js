@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Container, Typography, Button, TextField, Paper, Table, TableBody, TableCell, 
-  TableContainer, TableHead, TableRow, CircularProgress, Alert, Tooltip
+  TableContainer, TableHead, TableRow, CircularProgress, Alert, Tooltip,
+  Select, MenuItem, FormControl, InputLabel, Modal, Box, LinearProgress
 } from '@mui/material';
 import { styled } from '@mui/system';
 
@@ -12,15 +13,31 @@ const Input = styled('input')({
   display: 'none',
 });
 
+const modalStyle = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 400,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+};
+
 const ProductProcessingApp = () => {
   const [jobId, setJobId] = useState(null);
   const [processingStatus, setProcessingStatus] = useState(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [products, setProducts] = useState([]);
+  const [countries, setCountries] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -41,6 +58,9 @@ const ProductProcessingApp = () => {
 
     setLoading(true);
     setError(null);
+    setIsModalOpen(true);
+    setProcessingProgress(0);
+    setProcessingStatus('Iniciando...');
     
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -54,6 +74,7 @@ const ProductProcessingApp = () => {
       setJobId(response.data.job_id);
     } catch (err) {
       setError('Erro ao iniciar o processamento: ' + (err.response?.data?.message || err.message));
+      setIsModalOpen(false);
     } finally {
       setLoading(false);
     }
@@ -64,22 +85,30 @@ const ProductProcessingApp = () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/processing_status/${jobId}`);
       setProcessingStatus(response.data.status);
+      setProcessingProgress(response.data.progress || 0);
+      
       if (response.data.status === 'completed') {
+        setIsModalOpen(false);
         fetchProducts();
+      } else if (response.data.status === 'failed') {
+        setError('O processamento falhou. Por favor, tente novamente.');
+        setIsModalOpen(false);
       }
     } catch (err) {
       setError('Erro ao verificar o status do processamento');
+      setIsModalOpen(false);
     }
   };
 
-  const fetchProducts = async (page = 1) => {
+  const fetchProducts = async (page = 1, newSearchTerm = searchTerm, newCountry = selectedCountry) => {
     setLoading(true);
     setError(null);
     try {
       const response = await axios.get(`${API_BASE_URL}/products`, {
-        params: { page, product_name: searchTerm }
+        params: { page, product_name: newSearchTerm, country: newCountry }
       });
       setProducts(response.data.products);
+      setCountries(response.data.countries);
       setCurrentPage(page);
     } catch (err) {
       setError('Erro ao buscar produtos');
@@ -90,19 +119,34 @@ const ProductProcessingApp = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchProducts(1);
+    fetchProducts(1, searchTerm, selectedCountry);
   };
 
-  useEffect(() => {
-    if (jobId && processingStatus !== 'completed') {
-      const interval = setInterval(checkProcessingStatus, 5000); // Verifica a cada 5 segundos
-      return () => clearInterval(interval);
-    }
-  }, [jobId, processingStatus]);
+  const handleCountryChange = (event) => {
+    const newCountry = event.target.value;
+    setSelectedCountry(newCountry);
+    fetchProducts(1, searchTerm, newCountry);
+  };
+
+  const handleSearchTermChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    let intervalId;
+    if (jobId && isModalOpen) {
+      intervalId = setInterval(checkProcessingStatus, 2000); // Check every 2 seconds
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [jobId, isModalOpen]);
 
   return (
     <Container maxWidth="lg">
@@ -134,9 +178,26 @@ const ProductProcessingApp = () => {
           variant="outlined"
           placeholder="Buscar por nome do produto"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={handleSearchTermChange}
           fullWidth
         />
+        <FormControl variant="outlined" style={{ minWidth: 120, marginLeft: '10px' }}>
+          <InputLabel id="country-select-label">País</InputLabel>
+          <Select
+            labelId="country-select-label"
+            id="country-select"
+            value={selectedCountry}
+            onChange={handleCountryChange}
+            label="País"
+          >
+            <MenuItem value="">
+              <em>Todos</em>
+            </MenuItem>
+            {countries.map((country) => (
+              <MenuItem key={country} value={country}>{country}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Button 
           type="submit"
           variant="contained" 
@@ -148,9 +209,29 @@ const ProductProcessingApp = () => {
         </Button>
       </Paper>
 
-      {jobId && processingStatus !== 'completed' && (
-        <Alert severity="info">Status do processamento: {processingStatus || 'Verificando...'}</Alert>
-      )}
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box sx={modalStyle}>
+          <Typography id="modal-modal-title" variant="h6" component="h2">
+            Status de Importação
+          </Typography>
+          <Typography id="modal-modal-description" sx={{ mt: 2 }}>
+            {processingStatus || 'Iniciando...'}
+          </Typography>
+          <LinearProgress 
+            variant="determinate" 
+            value={processingProgress} 
+            sx={{ mt: 2 }}
+          />
+          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
+            {`${Math.round(processingProgress)}%`}
+          </Typography>
+        </Box>
+      </Modal>
 
       {loading && <CircularProgress />}
 
