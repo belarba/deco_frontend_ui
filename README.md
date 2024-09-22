@@ -1,6 +1,7 @@
 # Deco Frontend UI
 
 This project is an User Interface for this external [API](https://github.com/belarba/deco_backend_api) that's also part of this exercise.
+
 It was developed using React with MaterialUI.
 
 ## Prerequisites
